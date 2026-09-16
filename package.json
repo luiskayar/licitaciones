@@ -14,7 +14,7 @@
     "explorar": "node src/explorador.js",
     "test:playwright": "npx playwright test",
     "codegen": "npx playwright codegen",
-    "postinstall": "playwright install --with-deps chromium"
+    "postinstall": "playwright install chromium"
   },
   "keywords": [
     "licitaciones",
