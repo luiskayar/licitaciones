@@ -1,10 +1,9 @@
 const els = {
   bannerError: document.getElementById('banner-error'),
-  panelProgreso: document.getElementById('panel-progreso'),
-  progresoEstado: document.getElementById('progreso-estado'),
-  progresoPct: document.getElementById('progreso-pct'),
-  progresoFill: document.getElementById('progreso-fill'),
-  progresoLog: document.getElementById('progreso-log'),
+  panelEstado: document.getElementById('panel-estado'),
+  estadoTitulo: document.getElementById('estado-titulo'),
+  estadoDetalle: document.getElementById('estado-detalle'),
+  estadoRun: document.getElementById('estado-run'),
   btnBuscar: document.getElementById('btn-buscar'),
   btnJson: document.getElementById('btn-json'),
   btnPdf: document.getElementById('btn-pdf'),
@@ -21,8 +20,11 @@ const state = {
   fecha: null,
   licitaciones: [],
   nivel: 'TODAS',
-  texto: ''
+  texto: '',
+  repositorio: null
 };
+
+const rutaResultado = (fecha, ext) => `data/results/licitaciones-${fecha}.${ext}`;
 
 function mostrarError(mensaje) {
   els.bannerError.textContent = `⚠️ ${mensaje}`;
@@ -37,8 +39,8 @@ function ocultarError() {
 
 async function cargarListaFechas(seleccionar) {
   try {
-    const res = await fetch('/api/resultados');
-    if (!res.ok) throw new Error(`El servidor respondió ${res.status}`);
+    const res = await fetch('data/manifest.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error(`No se encontró el índice de resultados (${res.status})`);
     const lista = await res.json();
 
     els.selectFecha.innerHTML = '';
@@ -68,8 +70,8 @@ async function cargarListaFechas(seleccionar) {
 
 async function cargarFecha(fecha) {
   try {
-    const res = await fetch(`/api/resultados/${fecha}`);
-    if (!res.ok) throw new Error(`El servidor respondió ${res.status}`);
+    const res = await fetch(rutaResultado(fecha, 'json'), { cache: 'no-store' });
+    if (!res.ok) throw new Error(`No se encontró el archivo de esa fecha (${res.status})`);
     state.fecha = fecha;
     state.licitaciones = await res.json();
     ocultarError();
@@ -156,135 +158,124 @@ els.selectFecha.addEventListener('change', (e) => cargarFecha(e.target.value));
 
 // ─── Descargas ─────────────────────────────────────────────────────────────
 
+function descargar(ruta, nombre) {
+  const a = document.createElement('a');
+  a.href = ruta;
+  a.download = nombre;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
 els.btnJson.addEventListener('click', () => {
   if (!state.fecha) return;
-  window.location.href = `/api/resultados/${state.fecha}/descargar`;
+  descargar(rutaResultado(state.fecha, 'json'), `licitaciones-${state.fecha}.json`);
 });
 
-els.btnPdf.addEventListener('click', async () => {
+els.btnPdf.addEventListener('click', () => {
   if (!state.fecha) return;
-  els.btnPdf.disabled = true;
-  const textoOriginal = els.btnPdf.textContent;
-  els.btnPdf.textContent = 'Generando PDF…';
-  try {
-    const res = await fetch(`/api/resultados/${state.fecha}/pdf`);
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error || `El servidor respondió ${res.status}`);
-    }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `licitaciones-${state.fecha}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  } catch (err) {
-    mostrarError(`No se pudo generar el PDF: ${err.message}`);
-  } finally {
-    els.btnPdf.disabled = false;
-    els.btnPdf.textContent = textoOriginal;
-  }
+  descargar(rutaResultado(state.fecha, 'pdf'), `licitaciones-${state.fecha}.pdf`);
 });
 
-// ─── Búsqueda en vivo (SSE) ────────────────────────────────────────────────
+// ─── Estado de la última búsqueda ──────────────────────────────────────────
+// Sin servidor no hay progreso en vivo: en su lugar se muestra el resultado de
+// la última ejecución y, si el repositorio es público, se consulta la API de
+// GitHub para avisar cuando hay una búsqueda corriendo en este momento.
 
-function agregarLinea(texto, clase) {
-  const div = document.createElement('div');
-  if (clase) div.classList.add(clase);
-  const hora = new Date().toLocaleTimeString('es-CR');
-  div.textContent = `[${hora}] ${texto}`;
-  els.progresoLog.appendChild(div);
-  els.progresoLog.scrollTop = els.progresoLog.scrollHeight;
+const INTERVALO_SONDEO_MS = 20000;
+
+function haceCuanto(iso) {
+  const minutos = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (minutos < 1) return 'hace un momento';
+  if (minutos < 60) return `hace ${minutos} min`;
+  const horas = Math.round(minutos / 60);
+  if (horas < 24) return `hace ${horas} h`;
+  return `hace ${Math.round(horas / 24)} días`;
 }
 
-function fijarProgreso(pct) {
-  const valor = Math.max(0, Math.min(100, pct ?? 0));
-  els.progresoFill.style.width = `${valor}%`;
-  els.progresoPct.textContent = `${valor}%`;
-}
+function pintarEstado(estado) {
+  els.panelEstado.hidden = false;
 
-function iniciarBusquedaUI() {
-  els.panelProgreso.hidden = false;
-  els.progresoLog.innerHTML = '';
-  els.progresoEstado.textContent = 'Buscando licitaciones…';
-  fijarProgreso(0);
-  els.btnBuscar.disabled = true;
-  els.btnBuscar.textContent = '⏳ Buscando…';
-  ocultarError();
-}
+  const r = estado.resumen;
+  els.estadoTitulo.textContent = r
+    ? `✅ Última búsqueda ${haceCuanto(estado.ultima_ejecucion)} · ${r.nuevas} licitación(es) nueva(s)`
+    : `⚠️ Última búsqueda ${haceCuanto(estado.ultima_ejecucion)} · sin resumen disponible`;
 
-function finalizarBusquedaUI(ok, mensaje) {
-  els.progresoEstado.textContent = mensaje;
-  els.btnBuscar.disabled = false;
-  els.btnBuscar.textContent = '🔍 Ejecutar búsqueda ahora';
-  if (!ok) mostrarError(mensaje);
-}
-
-function manejarEvento(evento) {
-  switch (evento.type) {
-    case 'server-estado':
-      if (evento.estado === 'ejecutando') iniciarBusquedaUI();
-      return;
-    case 'server-inicio':
-      iniciarBusquedaUI();
-      return;
-    case 'server-fin':
-      fijarProgreso(100);
-      finalizarBusquedaUI(true, '✅ Búsqueda completada');
-      cargarListaFechas(evento.data?.archivo ? soloFecha(evento.data.archivo) : undefined);
-      return;
-    case 'server-error':
-      finalizarBusquedaUI(false, `❌ ${evento.message}`);
-      return;
+  const partes = [];
+  if (r) {
+    partes.push(`${r.portalesRevisados} portales revisados`);
+    partes.push(`${r.totalAnalizadas} licitaciones analizadas`);
+    partes.push(`${r.relevantes} relevantes`);
   }
+  if (estado.errores?.length) partes.push(`${estado.errores.length} portal(es) con error`);
+  els.estadoDetalle.textContent = partes.join(' · ');
 
-  if (typeof evento.progress === 'number') fijarProgreso(evento.progress);
-  if (evento.message) {
-    const clase = evento.type === 'portal-error' ? 'log-error'
-      : evento.type === 'fin' ? 'log-ok'
-      : undefined;
-    agregarLinea(evento.message, clase);
+  if (estado.run_url) {
+    els.estadoRun.href = estado.run_url;
+    els.estadoRun.hidden = false;
   }
 }
 
-function soloFecha(archivo) {
-  const m = archivo.match(/(\d{4}-\d{2}-\d{2})/);
-  return m ? m[1] : undefined;
-}
-
-function conectarSSE() {
-  const fuente = new EventSource('/api/buscar/eventos');
-  fuente.onmessage = (e) => {
-    try {
-      manejarEvento(JSON.parse(e.data));
-    } catch {
-      // ignorar mensajes mal formados
-    }
-  };
-  fuente.onerror = () => {
-    // EventSource reintenta solo; no es necesario mostrar error por cada corte breve
-  };
-}
-
-els.btnBuscar.addEventListener('click', async () => {
+async function cargarSitio() {
   try {
-    const res = await fetch('/api/buscar', { method: 'POST' });
-    if (res.status === 409) {
-      const body = await res.json();
-      mostrarError(body.error);
-      return;
-    }
-    if (!res.ok) throw new Error(`El servidor respondió ${res.status}`);
-    iniciarBusquedaUI();
-  } catch (err) {
-    mostrarError(`No se pudo iniciar la búsqueda: ${err.message}`);
+    const res = await fetch('data/sitio.json', { cache: 'no-store' });
+    if (!res.ok) return;
+    const sitio = await res.json();
+    if (!sitio.repositorio) return;
+
+    state.repositorio = sitio.repositorio;
+    els.btnBuscar.href = `https://github.com/${sitio.repositorio}/actions/workflows/${sitio.workflow}`;
+    els.btnBuscar.hidden = false;
+  } catch {
+    // En local no existe: el botón simplemente no se muestra
   }
-});
+}
+
+async function cargarEstado() {
+  try {
+    const res = await fetch('data/estado.json', { cache: 'no-store' });
+    if (!res.ok) return;
+    pintarEstado(await res.json());
+  } catch {
+    // Sin estado.json el dashboard sigue funcionando: solo no muestra el panel
+  }
+}
+
+async function sondearEjecucionEnCurso() {
+  if (!state.repositorio) return;
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${state.repositorio}/actions/runs?per_page=1`,
+      { headers: { Accept: 'application/vnd.github+json' } }
+    );
+    if (!res.ok) return; // repositorio privado o límite de la API: se ignora
+    const ejecucion = (await res.json()).workflow_runs?.[0];
+    if (!ejecucion) return;
+
+    const enCurso = ejecucion.status === 'in_progress' || ejecucion.status === 'queued';
+    if (enCurso) {
+      els.panelEstado.hidden = false;
+      els.estadoTitulo.textContent = '⏳ Búsqueda en curso…';
+      els.estadoDetalle.textContent =
+        `Iniciada ${haceCuanto(ejecucion.run_started_at)}. Esto tarda entre 10 y 20 minutos.`;
+      els.estadoRun.href = ejecucion.html_url;
+      els.estadoRun.hidden = false;
+      setTimeout(sondearEjecucionEnCurso, INTERVALO_SONDEO_MS);
+    } else if (els.estadoTitulo.textContent.startsWith('⏳')) {
+      // Terminó mientras mirábamos: recargar los datos publicados
+      await cargarEstado();
+      await cargarListaFechas();
+    }
+  } catch {
+    // La API de GitHub no es indispensable; el panel ya muestra el último estado
+  }
+}
 
 // ─── Arranque ──────────────────────────────────────────────────────────────
 
-cargarListaFechas();
-conectarSSE();
+(async () => {
+  await Promise.all([cargarSitio(), cargarEstado()]);
+  await cargarListaFechas();
+  sondearEjecucionEnCurso();
+})();
+

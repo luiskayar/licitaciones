@@ -97,40 +97,20 @@ body {
   margin-bottom: 8px;
 }
 
-.progreso-barra {
-  height: 10px;
-  border-radius: 6px;
-  background: var(--border);
-  overflow: hidden;
-}
-
-.progreso-fill {
-  height: 100%;
-  width: 0%;
-  background: linear-gradient(90deg, var(--primary), #4f7dff);
-  transition: width .4s ease;
-}
-
 .progreso-nota {
   color: var(--text-muted);
   font-size: 13px;
-  margin: 8px 0 10px;
+  margin: 4px 0 0;
 }
 
-.progreso-log {
-  max-height: 160px;
-  overflow-y: auto;
-  font-family: "SF Mono", Consolas, monospace;
-  font-size: 12.5px;
-  background: #fafbfc;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 8px 10px;
-  color: var(--text-muted);
+.estado-link {
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--primary);
+  text-decoration: none;
+  white-space: nowrap;
 }
-.progreso-log div { padding: 1px 0; }
-.progreso-log .log-error { color: var(--alta); }
-.progreso-log .log-ok { color: #1e7a34; }
+.estado-link:hover { text-decoration: underline; }
 
 .toolbar {
   display: flex;

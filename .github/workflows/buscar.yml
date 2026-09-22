@@ -1,0 +1,61 @@
+name: Búsqueda de licitaciones
+
+on:
+  schedule:
+    - cron: '0 14 * * 1-5'   # 8:00 a.m. Costa Rica (UTC-6), de lunes a viernes
+  workflow_dispatch: {}       # botón "Run workflow" para lanzarla a mano
+
+permissions:
+  contents: write             # necesario para guardar los resultados en la rama
+  pages: write
+  id-token: write
+
+concurrency:
+  group: busqueda
+  cancel-in-progress: false   # si ya hay una búsqueda corriendo, esta espera
+
+jobs:
+  buscar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45       # margen amplio sobre los 10-20 min esperados
+
+    steps:
+      # Sin "ref" explícito toma la rama desde la que se lanzó el workflow,
+      # así funciona igual en diego que en main sin editar este archivo.
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Instalar dependencias (incluye Chromium de Playwright)
+        run: npm install
+
+      - name: Ejecutar la búsqueda
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: node src/index.js
+
+      - name: Guardar resultados en el repositorio
+        run: |
+          git config user.name "delphos-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --cached --quiet; then
+            echo "Sin resultados nuevos que guardar"
+            exit 0
+          fi
+          git commit -m "Actualiza datos: búsqueda automática $(date -u +%Y-%m-%d)"
+          git pull --rebase origin "$RAMA"
+          git push origin "HEAD:$RAMA"
+        env:
+          RAMA: ${{ github.ref_name }}
+
+  publicar:
+    needs: buscar
+    uses: ./.github/workflows/pages.yml
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
