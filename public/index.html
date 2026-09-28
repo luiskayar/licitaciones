@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>DELPHOS — Motor de Licitaciones</title>
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="header">
@@ -12,21 +12,17 @@
       <h1>DELPHOS <span class="header-sub">· Motor de Licitaciones</span></h1>
       <p class="header-desc">Búsqueda automatizada en portales de compras públicas de LATAM</p>
     </div>
-    <button id="btn-buscar" class="btn btn-primary">🔍 Ejecutar búsqueda ahora</button>
+    <a id="btn-buscar" class="btn btn-primary" target="_blank" rel="noopener" hidden>🔍 Ejecutar búsqueda ahora</a>
   </header>
 
   <div id="banner-error" class="banner banner-error" hidden></div>
 
-  <section id="panel-progreso" class="panel-progreso" hidden>
+  <section id="panel-estado" class="panel-progreso" hidden>
     <div class="progreso-header">
-      <span id="progreso-estado">Iniciando búsqueda…</span>
-      <span id="progreso-pct">0%</span>
+      <span id="estado-titulo"></span>
+      <a id="estado-run" class="estado-link" target="_blank" rel="noopener" hidden>Ver ejecución ↗</a>
     </div>
-    <div class="progreso-barra">
-      <div id="progreso-fill" class="progreso-fill"></div>
-    </div>
-    <p class="progreso-nota">Esto puede tardar unos minutos — recorre varios portales y analiza cada licitación con IA.</p>
-    <div id="progreso-log" class="progreso-log"></div>
+    <p id="estado-detalle" class="progreso-nota"></p>
   </section>
 
   <section class="toolbar">
@@ -65,6 +61,6 @@
     </article>
   </template>
 
-  <script src="/app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

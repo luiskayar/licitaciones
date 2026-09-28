@@ -5,10 +5,38 @@
  * reusarla desde el servidor web (src/server.js).
  */
 
-import { ejecutarBusqueda } from './buscador.js';
+import { writeFileSync, mkdirSync } from 'fs';
+import { join } from 'path';
+import { ejecutarBusqueda, ROOT } from './buscador.js';
+
+/**
+ * Deja constancia de la última ejecución en data/estado.json.
+ * El dashboard estático lo lee para mostrar cuándo corrió la búsqueda por
+ * última vez, ya que sin servidor no puede recibir el progreso en vivo.
+ */
+function guardarEstado(resumen, errores) {
+  const repositorio = process.env.GITHUB_REPOSITORY ?? null;
+  const runId = process.env.GITHUB_RUN_ID;
+  const servidor = process.env.GITHUB_SERVER_URL ?? 'https://github.com';
+
+  const estado = {
+    ultima_ejecucion: new Date().toISOString(),
+    origen: repositorio ? 'github-actions' : 'local',
+    repositorio,
+    workflow: 'buscar.yml',
+    run_url: repositorio && runId ? `${servidor}/${repositorio}/actions/runs/${runId}` : null,
+    resumen: resumen ?? null,
+    errores
+  };
+
+  mkdirSync(join(ROOT, 'data'), { recursive: true });
+  writeFileSync(join(ROOT, 'data/estado.json'), JSON.stringify(estado, null, 2), 'utf8');
+}
 
 async function main() {
   console.log('=== DELPHOS — Motor de Búsqueda de Licitaciones ===\n');
+
+  const errores = [];
 
   const { relevantes, resumen } = await ejecutarBusqueda((evento) => {
     switch (evento.type) {
@@ -29,6 +57,7 @@ async function main() {
         break;
       case 'portal-error':
         console.log(`   ✗ ${evento.message}`);
+        errores.push(evento.message);
         break;
       case 'prefiltro':
         console.log(`\n🤖 ${evento.message}`);
@@ -43,6 +72,8 @@ async function main() {
         break;
     }
   });
+
+  guardarEstado(resumen, errores);
 
   if (!resumen) return;
 

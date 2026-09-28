@@ -1,0 +1,58 @@
+name: Publicar dashboard
+
+# Se ejecuta solo cuando cambia el dashboard, y también lo invoca buscar.yml
+# después de guardar resultados nuevos.
+on:
+  push:
+    branches: [diego, main]
+    paths:
+      - 'public/**'
+      - 'scripts/**'
+      - 'src/reporte-html.js'
+      - '.github/workflows/pages.yml'
+  workflow_call: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      # Se toma la punta de la rama, no el commit que disparó el workflow:
+      # cuando buscar.yml invoca este archivo, el commit con los resultados
+      # nuevos ya existe y es el que hay que publicar.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Instalar dependencias (incluye Chromium para los PDF)
+        run: npm install
+
+      - name: Construir el sitio estático
+        run: node scripts/construir-sitio.js
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

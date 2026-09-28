@@ -11,6 +11,7 @@ import { readFileSync, readdirSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { ejecutarBusqueda, ROOT } from './buscador.js';
+import { generarHTMLReporte } from './reporte-html.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUERTO = process.env.PORT || 3000;
@@ -19,6 +20,43 @@ const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const app = express();
 app.use(express.static(join(__dirname, '..', 'public')));
+// El dashboard lee los datos por ruta relativa (data/...), igual que en el sitio
+// publicado en GitHub Pages, para que el mismo app.js sirva en ambos entornos.
+app.use('/data', express.static(join(ROOT, 'data')));
+
+// ─── Equivalentes locales de los archivos que genera el build estático ───────
+// En GitHub Pages estos archivos los produce scripts/construir-sitio.js; aquí se
+// resuelven al vuelo para no tener que construir el sitio en cada cambio.
+
+app.get('/data/manifest.json', (req, res) => {
+  try {
+    res.json(listarResultados());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/data/results/licitaciones-:fecha.pdf', async (req, res) => {
+  let browser;
+  try {
+    const licitaciones = leerLicitaciones(req.params.fecha);
+    if (licitaciones === null) return res.status(404).json({ error: 'No hay resultados para esa fecha' });
+
+    browser = await chromium.launch();
+    const page = await browser.newPage();
+    await page.setContent(generarHTMLReporte(req.params.fecha, licitaciones), { waitUntil: 'networkidle' });
+    const pdf = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: { top: '18mm', bottom: '16mm', left: '14mm', right: '14mm' }
+    });
+    res.set('Content-Type', 'application/pdf').send(pdf);
+  } catch (err) {
+    res.status(500).json({ error: `No se pudo generar el PDF: ${err.message}` });
+  } finally {
+    if (browser) await browser.close();
+  }
+});
 
 // ─── Estado del job de búsqueda (uno a la vez, en memoria) ───────────────────
 
@@ -182,61 +220,6 @@ app.get('/api/resultados/:fecha/pdf', async (req, res) => {
     if (browser) await browser.close();
   }
 });
-
-function escapeHTML(str) {
-  return String(str ?? '').replace(/[&<>"']/g, c => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-  }[c]));
-}
-
-function generarHTMLReporte(fecha, licitaciones) {
-  const colorNivel = { ALTA: '#b3261e', MEDIA: '#8a5a00', BAJA: '#555' };
-  const filas = licitaciones.map(l => {
-    const monto = l.monto_estimado
-      ? `${escapeHTML(l.moneda || '')} ${Number(l.monto_estimado).toLocaleString('es-CL')}`
-      : 'Monto no publicado';
-    const cierre = l.dias_hasta_cierre != null
-      ? `${escapeHTML(l.fecha_cierre)} (faltan ${l.dias_hasta_cierre} días)`
-      : (l.fecha_cierre ? escapeHTML(l.fecha_cierre) : 'Sin fecha de cierre');
-    return `
-      <div class="item">
-        <div class="item-header">
-          <span class="badge" style="color:${colorNivel[l.nivel_relevancia] || '#333'}">${escapeHTML(l.nivel_relevancia || '')}</span>
-          <span class="titulo">${escapeHTML(l.titulo)}</span>
-        </div>
-        <div class="meta">${escapeHTML(l.entidad)}${l.region ? ' — ' + escapeHTML(l.region) : ''} · ${escapeHTML(l.pais)} · ${escapeHTML(l.portal)}</div>
-        <div class="meta">💰 ${monto} &nbsp;|&nbsp; 📅 ${cierre}</div>
-        ${l.numero_expediente ? `<div class="meta">📋 Expediente: ${escapeHTML(l.numero_expediente)}</div>` : ''}
-        ${l.razon_gemini ? `<div class="razon">🤖 ${escapeHTML(l.razon_gemini)}</div>` : ''}
-        <div class="link">${escapeHTML(l.url)}</div>
-      </div>`;
-  }).join('\n');
-
-  return `<!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<style>
-  * { box-sizing: border-box; }
-  body { font-family: Arial, Helvetica, sans-serif; color: #1a1a1a; font-size: 11px; }
-  h1 { font-size: 18px; margin-bottom: 2px; }
-  .subtitulo { color: #666; margin-bottom: 18px; }
-  .item { border: 1px solid #ddd; border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; page-break-inside: avoid; }
-  .item-header { display: flex; gap: 8px; align-items: baseline; margin-bottom: 4px; }
-  .badge { font-weight: bold; font-size: 10px; letter-spacing: .03em; }
-  .titulo { font-weight: bold; font-size: 12px; }
-  .meta { color: #444; margin-bottom: 2px; }
-  .razon { color: #333; font-style: italic; margin-top: 4px; }
-  .link { color: #1a56db; word-break: break-all; margin-top: 4px; font-size: 10px; }
-</style>
-</head>
-<body>
-  <h1>DELPHOS — Licitaciones relevantes</h1>
-  <div class="subtitulo">Fecha de búsqueda: ${escapeHTML(fecha)} · ${licitaciones.length} resultado(s)</div>
-  ${filas || '<p>Sin licitaciones para esta fecha.</p>'}
-</body>
-</html>`;
-}
 
 app.listen(PUERTO, () => {
   console.log(`\n=== DELPHOS Licitaciones ===`);
