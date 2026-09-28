@@ -2,7 +2,9 @@ name: Búsqueda de licitaciones
 
 on:
   schedule:
-    - cron: '0 14 * * 1-5'   # 8:00 a.m. Costa Rica (UTC-6), de lunes a viernes
+    # 6:30 a.m. Costa Rica = 12:30 UTC (el país no aplica horario de verano).
+    # Días 1, 3 y 5 = lunes, miércoles y viernes.
+    - cron: '30 12 * * 1,3,5'
   workflow_dispatch: {}       # botón "Run workflow" para lanzarla a mano
 
 permissions:
