@@ -8,6 +8,7 @@
 import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { ejecutarBusqueda, ROOT } from './buscador.js';
+import { generarYEnviarReporte } from './enviar_n8n.js';
 
 /**
  * Deja constancia de la última ejecución en data/estado.json.
@@ -38,7 +39,7 @@ async function main() {
 
   const errores = [];
 
-  const { relevantes, resumen } = await ejecutarBusqueda((evento) => {
+  const { relevantes, nuevas, resumen } = await ejecutarBusqueda((evento) => {
     switch (evento.type) {
       case 'inicio':
         console.log(evento.message + '\n');
@@ -76,6 +77,11 @@ async function main() {
   guardarEstado(resumen, errores);
 
   if (!resumen) return;
+
+  // El análisis terminó: se envía a n8n el PDF con las licitaciones guardadas hoy
+  console.log('');
+  const fecha = resumen.archivo.match(/\d{4}-\d{2}-\d{2}/)[0];
+  await generarYEnviarReporte(fecha, nuevas);
 
   console.log(`\n📊 Resumen:`);
   console.log(`   Portales revisados: ${resumen.portalesRevisados}`);
