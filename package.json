@@ -7,12 +7,12 @@
   "engines": {
     "node": ">=20.6.0"
   },
-"scripts": {
-    "start": "node src/server.js",
+  "scripts": {
+    "start": "node --env-file=.env src/server.js",
     "dev": "node --env-file=.env src/server.js",
     "buscar": "node --env-file=.env src/index.js",
     "enviar": "node src/enviar_n8n.js", 
-    "explorar": "node src/explorador.js"
+    "explorar": "node --env-file=.env src/explorador.js"
   },
   "keywords": [
     "licitaciones",
