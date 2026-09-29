@@ -12,6 +12,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { ejecutarBusqueda, ROOT } from './buscador.js';
 import { generarHTMLReporte } from './reporte-html.js';
+import { generarYEnviarReporte } from './enviar_n8n.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUERTO = process.env.PORT || 3000;
@@ -90,7 +91,11 @@ async function lanzarBusqueda() {
   emitir({ type: 'server-inicio', message: 'Búsqueda iniciada', progress: 0 });
 
   try {
-    const { resumen } = await ejecutarBusqueda(emitir);
+    const { resumen, nuevas } = await ejecutarBusqueda(emitir);
+    if (resumen) {
+      const fecha = resumen.archivo.match(/\d{4}-\d{2}-\d{2}/)[0];
+      await generarYEnviarReporte(fecha, nuevas, message => emitir({ type: 'n8n', message }));
+    }
     job.estado = 'completado';
     job.resumen = resumen;
     emitir({ type: 'server-fin', message: 'Búsqueda finalizada', progress: 100, data: resumen });
