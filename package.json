@@ -7,10 +7,10 @@
   "engines": {
     "node": ">=20.6.0"
   },
-"scripts": {
+  "scripts": {
     "start": "node src/server.js",
     "dev": "node --env-file=.env src/server.js",
-    "buscar": "node --env-file=.env src/index.js",
+    "buscar": "node --env-file=.env src/index.js && npm run enviar",
     "enviar": "node src/enviar_n8n.js", 
     "explorar": "node src/explorador.js"
   },
