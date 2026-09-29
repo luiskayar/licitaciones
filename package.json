@@ -7,14 +7,12 @@
   "engines": {
     "node": ">=20.6.0"
   },
-  "scripts": {
+"scripts": {
     "start": "node src/server.js",
     "dev": "node --env-file=.env src/server.js",
     "buscar": "node --env-file=.env src/index.js",
-    "explorar": "node src/explorador.js",
-    "test:playwright": "npx playwright test",
-    "codegen": "npx playwright codegen",
-    "postinstall": "playwright install --with-deps chromium"
+    "enviar": "node src/enviar_n8n.js", 
+    "explorar": "node src/explorador.js"
   },
   "keywords": [
     "licitaciones",
@@ -29,7 +27,11 @@
     "@playwright/test": "^1.60.0"
   },
   "dependencies": {
+    "axios": "^1.20.0",
     "express": "^5.2.1",
+    "form-data": "^4.0.6",
+    "nodemailer": "^10.0.12",
+    "pdfkit": "^0.20.2",
     "playwright": "^1.60.0"
   }
 }
