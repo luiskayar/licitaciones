@@ -1,17 +1,17 @@
 {
-  "ultima_ejecucion": "2026-09-28T22:15:04.540Z",
+  "ultima_ejecucion": "2026-09-30T20:28:35.831Z",
   "origen": "github-actions",
   "repositorio": "luiskayar/licitaciones",
   "workflow": "buscar.yml",
-  "run_url": "https://github.com/luiskayar/licitaciones/actions/runs/36487493623",
+  "run_url": "https://github.com/luiskayar/licitaciones/actions/runs/36771115618",
   "resumen": {
     "portalesRevisados": 8,
-    "totalAnalizadas": 1683,
-    "candidatas": 243,
-    "relevantes": 17,
-    "duplicadas": 14,
-    "nuevas": 3,
-    "archivo": "data/results/licitaciones-2026-09-28.json"
+    "totalAnalizadas": 1679,
+    "candidatas": 257,
+    "relevantes": 11,
+    "duplicadas": 6,
+    "nuevas": 5,
+    "archivo": "data/results/licitaciones-2026-09-30.json"
   },
   "errores": []
 }
