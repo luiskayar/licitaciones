@@ -31,8 +31,13 @@ jobs:
           node-version: '20'
           cache: npm
 
-      - name: Instalar dependencias (incluye Chromium de Playwright)
+      - name: Instalar dependencias
         run: npm install
+
+      # Explícito a propósito: si alguien toca los scripts de package.json, el
+      # navegador se sigue instalando y la búsqueda no se rompe en silencio.
+      - name: Instalar Chromium para Playwright
+        run: npx playwright install --with-deps chromium
 
       - name: Ejecutar la búsqueda
         env:

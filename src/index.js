@@ -113,4 +113,9 @@ async function main() {
   }
 }
 
-main().catch(console.error);
+// Salir con código distinto de cero: si no, un fallo (por ejemplo, Chromium sin
+// instalar) deja el job de GitHub Actions en verde y la avería pasa inadvertida.
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
